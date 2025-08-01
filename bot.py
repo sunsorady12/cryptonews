@@ -108,25 +108,31 @@ async def inline_news(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.inline_query.answer(results)
 
 def main():
+    # Create application
     application = Application.builder().token(TELEGRAM_TOKEN).build()
     
-    # Command handlers
+    # Add handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("news", news_command))
-    
-    # Inline handler
     application.add_handler(InlineQueryHandler(inline_news))
     
-    # Scheduler for automatic updates
-    scheduler = AsyncIOScheduler(timezone="UTC")
+    # Schedule news updates
+    scheduler = AsyncIOScheduler()
     scheduler.add_job(
         send_news_update,
         "interval",
         hours=6,
-        args=[application]
+        args=[application],
+        timezone="UTC"
     )
-    scheduler.start()
     
+    # Start scheduler AFTER the event loop is running
+    application.job_queue.run_once(
+        callback=lambda _: scheduler.start(),
+        when=0
+    )
+    
+    # Start the bot
     application.run_polling()
 
 if __name__ == "__main__":
