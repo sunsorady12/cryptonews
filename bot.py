@@ -6,11 +6,11 @@ from telegram.ext import (
     Application,
     CommandHandler,
     InlineQueryHandler,
-    ContextTypes
+    ContextTypes,
+    JobQueue
 )
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import requests
-import json
+import asyncio
 from uuid import uuid4
 
 # Load environment variables
@@ -25,6 +25,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
+logger = logging.getLogger(__name__)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text('🚀 Welcome to Crypto News Digest Bot! Use /news to get latest updates or try inline mode with @YourBotName news btc')
@@ -45,7 +46,7 @@ async def fetch_crypto_news(filter_currency=None, limit=5):
         data = response.json()
         return data.get("results", [])[:limit]
     except Exception as e:
-        logging.error(f"Error fetching news: {e}")
+        logger.error(f"Error fetching news: {e}")
         return []
 
 def format_news(news_items):
@@ -71,7 +72,7 @@ async def send_news_update(context: ContextTypes.DEFAULT_TYPE):
             disable_web_page_preview=True
         )
     except Exception as e:
-        logging.error(f"Error sending news: {e}")
+        logger.error(f"Error sending news: {e}")
 
 async def news_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     currency = context.args[0] if context.args else None
@@ -107,31 +108,25 @@ async def inline_news(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.inline_query.answer(results)
 
-def main():
-    # Create application without callback-data feature
+def main() -> None:
+    """Run the bot."""
+    # Create the Application
     application = Application.builder().token(TELEGRAM_TOKEN).build()
     
-    # Add handlers
+    # Register commands
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("news", news_command))
     application.add_handler(InlineQueryHandler(inline_news))
     
-    # Initialize scheduler
-    scheduler = AsyncIOScheduler(timezone="UTC")
-    scheduler.add_job(
+    # Schedule the news updates
+    job_queue = application.job_queue
+    job_queue.run_repeating(
         send_news_update,
-        "interval",
-        hours=6,
-        args=[application],
+        interval=21600,  # 6 hours in seconds
+        first=10  # Start after 10 seconds
     )
     
-    # Start scheduler when bot runs
-    async def post_init(application: Application):
-        scheduler.start()
-    
-    application.post_init = post_init
-    
-    # Start the bot
+    # Run the bot
     application.run_polling()
 
 if __name__ == "__main__":
