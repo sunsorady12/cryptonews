@@ -108,13 +108,8 @@ async def inline_news(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.inline_query.answer(results)
 
 def main():
-    # Create application WITH job queue enabled
-    application = (
-        Application.builder()
-        .token(TELEGRAM_TOKEN)
-        .arbitrary_callback_data(True)
-        .build()
-    )
+    # Create application without callback-data feature
+    application = Application.builder().token(TELEGRAM_TOKEN).build()
     
     # Add handlers
     application.add_handler(CommandHandler("start", start))
