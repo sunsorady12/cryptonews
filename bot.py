@@ -73,13 +73,14 @@ def main():
     # Create scheduler
     scheduler = AsyncIOScheduler()
     
-    # Add scheduled job with correct parameters
+    # Add scheduled job - FIXED SYNTAX HERE
     scheduler.add_job(
         send_news_update,
         'interval',
         hours=2,
         kwargs={'context': application},
-        next_run_time=datetime.now() + timedelta(seconds=10)  # Start 10 seconds after launch
+        next_run_time=datetime.now() + timedelta(seconds=10)
+    )  # THIS PAREN WAS MISSING
     
     # Start scheduler
     scheduler.start()
