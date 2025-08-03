@@ -1,17 +1,9 @@
 import os
 import logging
 from dotenv import load_dotenv
-from telegram import Update, InlineQueryResultArticle, InputTextMessageContent
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    InlineQueryHandler,
-    ContextTypes,
-    JobQueue
-)
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from telegram.ext import Application, ContextTypes
 import requests
-from uuid import uuid4
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 # Load environment variables
 load_dotenv()
@@ -26,18 +18,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text('🚀 Welcome to Crypto News Digest Bot! Use /news to get latest updates')
-
-async def fetch_crypto_news(filter_currency=None, limit=3):
+async def fetch_crypto_news(limit=3):
+    """Fetch top crypto news from CryptoPanic"""
     base_url = "https://cryptopanic.com/api/v1/posts/"
     params = {
         "auth_token": API_KEY,
         "public": "true",
         "kind": "news"
     }
-    if filter_currency:
-        params["currencies"] = filter_currency.upper()
     
     try:
         response = requests.get(base_url, params=params)
@@ -49,6 +37,7 @@ async def fetch_crypto_news(filter_currency=None, limit=3):
         return []
 
 def format_news(news_items):
+    """Format news items into a Telegram message"""
     if not news_items:
         return "No news available at the moment."
     
@@ -61,8 +50,9 @@ def format_news(news_items):
     return message
 
 async def send_news_update(context: ContextTypes.DEFAULT_TYPE):
+    """Send news update to channel"""
     try:
-        news = await fetch_crypto_news(limit=3)
+        news = await fetch_crypto_news()
         message = format_news(news)
         await context.bot.send_message(
             chat_id=CHANNEL_ID,
@@ -70,74 +60,33 @@ async def send_news_update(context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown",
             disable_web_page_preview=True
         )
-        logger.info("✅ Successfully sent news update to channel")
+        logger.info("✅ News update sent successfully")
     except Exception as e:
-        logger.error(f"❌ Error sending news: {e}")
+        logger.error(f"❌ Failed to send news: {e}")
 
-async def news_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    currency = context.args[0] if context.args else None
-    news = await fetch_crypto_news(currency, limit=3)
-    message = format_news(news)
-    await update.message.reply_text(
-        text=message,
-        parse_mode="Markdown",
-        disable_web_page_preview=True
-    )
-
-async def inline_news(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.inline_query.query
-    currency = query.split()[1] if len(query.split()) > 1 else None
-    news = await fetch_crypto_news(currency, limit=3)
-    
-    results = []
-    for item in news:
-        title = item.get("title", "Untitled")
-        url = item.get("url", "#")
-        results.append(
-            InlineQueryResultArticle(
-                id=str(uuid4()),
-                title=title,
-                input_message_content=InputTextMessageContent(
-                    message_text=f"[{title}]({url})",
-                    parse_mode="Markdown"
-                ),
-                url=url,
-                description=item.get("source", {}).get("title", "")
-            )
-        )
-    
-    await update.inline_query.answer(results)
-
-def main() -> None:
-    """Run the bot."""
-    # Create the Application
+def main():
+    """Setup and run the bot"""
+    # Create application
     application = Application.builder().token(TELEGRAM_TOKEN).build()
     
-    # Register commands
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("news", news_command))
-    application.add_handler(InlineQueryHandler(inline_news))
+    # Create scheduler
+    scheduler = AsyncIOScheduler()
     
-    # Create a manual job queue if not available
-    if application.job_queue is None:
-        logger.warning("⚠️ Using manual JobQueue setup")
-        scheduler = AsyncIOScheduler()
-        job_queue = JobQueue()
-        job_queue.set_application(application)
-        job_queue.set_scheduler(scheduler)
-        application.job_queue = job_queue
-        scheduler.start()
-    
-    # Schedule news updates every 2 hours (7200 seconds)
-    application.job_queue.run_repeating(
+    # Add scheduled job
+    scheduler.add_job(
         send_news_update,
-        interval=7200,
-        first=10
+        'interval',
+        hours=2,
+        args=[application],
+        next_run_time=scheduler.add_job
     )
+    
+    # Start scheduler
+    scheduler.start()
     logger.info("⏰ Scheduled news updates every 2 hours")
     
-    # Run the bot
-    logger.info("🤖 Starting bot...")
+    # Run application
+    logger.info("🤖 Starting news auto-poster...")
     application.run_polling()
 
 if __name__ == "__main__":
