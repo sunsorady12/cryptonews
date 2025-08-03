@@ -3,8 +3,6 @@ import logging
 from dotenv import load_dotenv
 from telegram.ext import Application, ContextTypes
 import requests
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from datetime import datetime, timedelta
 
 # Load environment variables
 load_dotenv()
@@ -19,7 +17,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-async def fetch_crypto_news(limit=3):
+def fetch_crypto_news(limit=3):
     """Fetch top crypto news from CryptoPanic"""
     base_url = "https://cryptopanic.com/api/v1/posts/"
     params = {
@@ -53,7 +51,7 @@ def format_news(news_items):
 async def send_news_update(context: ContextTypes.DEFAULT_TYPE):
     """Send news update to channel"""
     try:
-        news = await fetch_crypto_news()
+        news = fetch_crypto_news(limit=3)
         message = format_news(news)
         await context.bot.send_message(
             chat_id=CHANNEL_ID,
@@ -70,21 +68,17 @@ def main():
     # Create application
     application = Application.builder().token(TELEGRAM_TOKEN).build()
     
-    # Create scheduler
-    scheduler = AsyncIOScheduler()
-    
-    # Add scheduled job - FIXED SYNTAX HERE
-    scheduler.add_job(
-        send_news_update,
-        'interval',
-        hours=2,
-        kwargs={'context': application},
-        next_run_time=datetime.now() + timedelta(seconds=10)
-    )  # THIS PAREN WAS MISSING
-    
-    # Start scheduler
-    scheduler.start()
-    logger.info("⏰ Scheduled news updates every 2 hours")
+    # Schedule news updates every 2 hours using the bot's job queue
+    job_queue = application.job_queue
+    if job_queue:
+        job_queue.run_repeating(
+            send_news_update,
+            interval=7200,  # 2 hours in seconds
+            first=10        # Start after 10 seconds
+        )
+        logger.info("⏰ Scheduled news updates every 2 hours")
+    else:
+        logger.error("Job queue not available! Scheduled updates disabled")
     
     # Run application
     logger.info("🤖 Starting news auto-poster...")
