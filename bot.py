@@ -1,7 +1,7 @@
 import os
 import logging
 from dotenv import load_dotenv
-from telegram.ext import Application, ContextTypes
+from telegram.ext import Application, ContextTypes, CallbackContext
 import requests
 
 # Load environment variables
@@ -48,7 +48,7 @@ def format_news(news_items):
         message += f"{idx}. [{title}]({url}) - _{source}_\n\n"
     return message
 
-async def send_news_update(context: ContextTypes.DEFAULT_TYPE):
+async def send_news_update(context: CallbackContext):
     """Send news update to channel"""
     try:
         news = fetch_crypto_news(limit=3)
@@ -65,7 +65,7 @@ async def send_news_update(context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     """Setup and run the bot"""
-    # Create application
+    # Create application - FIXED VERSION COMPATIBILITY
     application = Application.builder().token(TELEGRAM_TOKEN).build()
     
     # Schedule news updates every 2 hours using the bot's job queue
