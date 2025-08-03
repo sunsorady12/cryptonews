@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from telegram.ext import Application, ContextTypes
 import requests
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from datetime import datetime, timedelta
 
 # Load environment variables
 load_dotenv()
@@ -72,14 +73,13 @@ def main():
     # Create scheduler
     scheduler = AsyncIOScheduler()
     
-    # Add scheduled job
+    # Add scheduled job with correct parameters
     scheduler.add_job(
         send_news_update,
         'interval',
         hours=2,
-        args=[application],
-        next_run_time=scheduler.add_job
-    )
+        kwargs={'context': application},
+        next_run_time=datetime.now() + timedelta(seconds=10)  # Start 10 seconds after launch
     
     # Start scheduler
     scheduler.start()
