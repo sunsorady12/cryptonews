@@ -6,8 +6,10 @@ from telegram.ext import (
     Application,
     CommandHandler,
     InlineQueryHandler,
-    ContextTypes
+    ContextTypes,
+    JobQueue
 )
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import requests
 from uuid import uuid4
 
@@ -68,9 +70,9 @@ async def send_news_update(context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown",
             disable_web_page_preview=True
         )
-        logger.info("Successfully sent news update to channel")
+        logger.info("✅ Successfully sent news update to channel")
     except Exception as e:
-        logger.error(f"Error sending news: {e}")
+        logger.error(f"❌ Error sending news: {e}")
 
 async def news_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     currency = context.args[0] if context.args else None
@@ -108,7 +110,7 @@ async def inline_news(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main() -> None:
     """Run the bot."""
-    # Create the Application with job_queue enabled
+    # Create the Application
     application = Application.builder().token(TELEGRAM_TOKEN).build()
     
     # Register commands
@@ -116,20 +118,26 @@ def main() -> None:
     application.add_handler(CommandHandler("news", news_command))
     application.add_handler(InlineQueryHandler(inline_news))
     
-    # Check if job queue is available
-    if application.job_queue:
-        # Schedule news updates every 2 hours (7200 seconds)
-        application.job_queue.run_repeating(
-            send_news_update,
-            interval=7200,
-            first=10
-        )
-        logger.info("Scheduled news updates every 2 hours")
-    else:
-        logger.error("Job queue not available! Scheduled updates disabled")
+    # Create a manual job queue if not available
+    if application.job_queue is None:
+        logger.warning("⚠️ Using manual JobQueue setup")
+        scheduler = AsyncIOScheduler()
+        job_queue = JobQueue()
+        job_queue.set_application(application)
+        job_queue.set_scheduler(scheduler)
+        application.job_queue = job_queue
+        scheduler.start()
+    
+    # Schedule news updates every 2 hours (7200 seconds)
+    application.job_queue.run_repeating(
+        send_news_update,
+        interval=7200,
+        first=10
+    )
+    logger.info("⏰ Scheduled news updates every 2 hours")
     
     # Run the bot
-    logger.info("Starting bot...")
+    logger.info("🤖 Starting bot...")
     application.run_polling()
 
 if __name__ == "__main__":
