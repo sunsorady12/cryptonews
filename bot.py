@@ -3,7 +3,7 @@ import logging
 from dotenv import load_dotenv
 from telegram import Update, InlineQueryResultArticle, InputTextMessageContent
 from telegram.ext import (
-    ApplicationBuilder,
+    Application,
     CommandHandler,
     InlineQueryHandler,
     ContextTypes
@@ -68,6 +68,7 @@ async def send_news_update(context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown",
             disable_web_page_preview=True
         )
+        logger.info("Successfully sent news update to channel")
     except Exception as e:
         logger.error(f"Error sending news: {e}")
 
@@ -107,23 +108,28 @@ async def inline_news(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main() -> None:
     """Run the bot."""
-    # Create the Application with the correct builder pattern
-    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    # Create the Application with job_queue enabled
+    application = Application.builder().token(TELEGRAM_TOKEN).build()
     
     # Register commands
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("news", news_command))
     application.add_handler(InlineQueryHandler(inline_news))
     
-    # Schedule the news updates every 2 hours (7200 seconds)
-    job_queue = application.job_queue
-    job_queue.run_repeating(
-        callback=send_news_update,
-        interval=7200,
-        first=10
-    )
+    # Check if job queue is available
+    if application.job_queue:
+        # Schedule news updates every 2 hours (7200 seconds)
+        application.job_queue.run_repeating(
+            send_news_update,
+            interval=7200,
+            first=10
+        )
+        logger.info("Scheduled news updates every 2 hours")
+    else:
+        logger.error("Job queue not available! Scheduled updates disabled")
     
     # Run the bot
+    logger.info("Starting bot...")
     application.run_polling()
 
 if __name__ == "__main__":
