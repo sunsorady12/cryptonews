@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text('🚀 Welcome to Crypto News Digest Bot! Use /news to get latest updates or try inline mode with @YourBotName news btc')
 
-async def fetch_crypto_news(filter_currency=None, limit=5):
+async def fetch_crypto_news(filter_currency=None, limit=3):  # Changed default limit to 3
     base_url = "https://cryptopanic.com/api/v1/posts/"
     params = {
         "auth_token": API_KEY,
@@ -53,7 +53,7 @@ def format_news(news_items):
     if not news_items:
         return "No news available at the moment."
     
-    message = "🔥 *Top Crypto News* 🔥\n\n"
+    message = "🔥 *Top 3 Crypto News* 🔥\n\n"  # Updated message to reflect top 3
     for idx, item in enumerate(news_items, 1):
         title = item.get("title", "Untitled")
         url = item.get("url", "#")
@@ -63,7 +63,7 @@ def format_news(news_items):
 
 async def send_news_update(context: ContextTypes.DEFAULT_TYPE):
     try:
-        news = await fetch_crypto_news()
+        news = await fetch_crypto_news(limit=3)  # Explicitly fetch only 3 news items
         message = format_news(news)
         await context.bot.send_message(
             chat_id=CHANNEL_ID,
@@ -76,7 +76,7 @@ async def send_news_update(context: ContextTypes.DEFAULT_TYPE):
 
 async def news_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     currency = context.args[0] if context.args else None
-    news = await fetch_crypto_news(currency)
+    news = await fetch_crypto_news(currency, limit=3)  # Also limit to 3 for command
     message = format_news(news)
     await update.message.reply_text(
         text=message,
@@ -118,11 +118,11 @@ def main() -> None:
     application.add_handler(CommandHandler("news", news_command))
     application.add_handler(InlineQueryHandler(inline_news))
     
-    # Schedule the news updates
+    # Schedule the news updates - changed to 2 hours (7200 seconds)
     job_queue = application.job_queue
     job_queue.run_repeating(
         send_news_update,
-        interval=21600,  # 6 hours in seconds
+        interval=7200,  # 2 hours in seconds (changed from 21600)
         first=10  # Start after 10 seconds
     )
     
